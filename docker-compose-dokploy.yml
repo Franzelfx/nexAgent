@@ -2,7 +2,7 @@
 #  NexAgent — Docker Compose for Dokploy Deployment
 # ══════════════════════════════════════════════════════════════════
 #
-#  Domain:      nexagent.nexpatch.ai
+#  Domain:      agent.nexpatch.ai
 #
 #  Dokploy Setup:
 #    1. Create a Compose service in Dokploy
@@ -27,13 +27,7 @@ services:
     expose:
       - 8123
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/health')",
-        ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/health')" ]
       interval: 30s
       timeout: 5s
       start_period: 15s
@@ -52,17 +46,16 @@ services:
     labels:
       - "traefik.enable=true"
       # HTTPS router
-      - "traefik.http.routers.nexagent-api.rule=Host(`nexagent.nexpatch.ai`)"
+      - "traefik.http.routers.nexagent-api.rule=Host(`agent.nexpatch.ai`)"
       - "traefik.http.routers.nexagent-api.entrypoints=websecure"
       - "traefik.http.routers.nexagent-api.tls.certResolver=letsencrypt"
       - "traefik.http.services.nexagent-api.loadbalancer.server.port=8123"
       # HTTP → HTTPS redirect
-      - "traefik.http.routers.nexagent-api-http.rule=Host(`nexagent.nexpatch.ai`)"
+      - "traefik.http.routers.nexagent-api-http.rule=Host(`agent.nexpatch.ai`)"
       - "traefik.http.routers.nexagent-api-http.entrypoints=web"
       - "traefik.http.routers.nexagent-api-http.middlewares=nexagent-redirect-https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.permanent=true"
-
   # ─── Graph Visualization ────────────────────────────────────
   # Use one of these options:
   # 1) `langgraph dev` locally for live node/edge visualization.

@@ -109,7 +109,7 @@ curl http://localhost:8123/health
 2. Point to this repo: `https://github.com/Franzelfx/nexAgent`
 3. Set **Compose Path** to `./docker-compose-dokploy.yml`
 4. Add environment variables in the Dokploy UI (see `.env.example`)
-5. Deploy — Traefik labels handle HTTPS routing to `nexagent.nexpatch.ai`
+5. Deploy — Traefik labels handle HTTPS routing to `agent.nexpatch.ai`
 
 ## Adding Tools
 
