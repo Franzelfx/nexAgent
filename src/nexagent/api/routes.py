@@ -32,7 +32,9 @@ async def health() -> dict:
 @router.get("/studio")
 async def studio(request: Request) -> RedirectResponse:
     """Redirect to hosted LangGraph Studio bound to this deployment URL."""
-    base_url = str(request.base_url).rstrip("/")
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", request.url.netloc))
+    base_url = f"{proto}://{host}".rstrip("/")
     target = f"https://smith.langchain.com/studio/?baseUrl={base_url}"
     return RedirectResponse(url=target, status_code=307)
 
