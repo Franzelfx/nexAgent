@@ -63,14 +63,10 @@ services:
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.permanent=true"
 
-  # ─── LangGraph Studio UI ────────────────────────────────────
-  # Self-hosted LangGraph Studio for graph visualization.
-  # This provides the visual node/edge graph view of agent execution.
-  #
-  # NOTE: As of 2026, langgraph-studio is the official self-hostable
-  # Docker image. If unavailable, use the LangGraph CLI dev server
-  # or the LangSmith UI instead (see README).
-  # ─────────────────────────────────────────────────────────────
+  # ─── Graph Visualization ────────────────────────────────────
+  # Use one of these options:
+  # 1) `langgraph dev` locally for live node/edge visualization.
+  # 2) LangSmith tracing via LANGCHAIN_TRACING_V2=true.
 
 networks:
   dokploy-network:

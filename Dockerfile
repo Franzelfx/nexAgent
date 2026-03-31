@@ -12,7 +12,7 @@ WORKDIR /app
 
 # System deps for building native extensions
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml ./
