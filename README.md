@@ -111,6 +111,10 @@ curl http://localhost:8123/health
 4. Add environment variables in the Dokploy UI (see `.env.example`)
 5. Deploy — Traefik labels handle HTTPS routing to `agent.nexpatch.ai`
 
+After deploy:
+- API Docs: `https://agent.nexpatch.ai/docs`
+- LangGraph Studio UI: `https://agent.nexpatch.ai/studio`
+
 ## Adding Tools
 
 Add new tools in `src/nexagent/tools/__init__.py`:

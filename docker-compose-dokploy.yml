@@ -56,10 +56,40 @@ services:
       - "traefik.http.routers.nexagent-api-http.middlewares=nexagent-redirect-https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.permanent=true"
+
+  # ─── LangGraph Studio UI ─────────────────────────────────────
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    command: ["langgraph", "dev", "--host", "0.0.0.0", "--port", "2024"]
+    expose:
+      - 2024
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-4o}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-nexagent}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nexagent-studio.rule=Host(`agent.nexpatch.ai`) && PathPrefix(`/studio`)"
+      - "traefik.http.routers.nexagent-studio.entrypoints=websecure"
+      - "traefik.http.routers.nexagent-studio.tls.certResolver=letsencrypt"
+      - "traefik.http.routers.nexagent-studio.priority=100"
+      - "traefik.http.routers.nexagent-studio.middlewares=nexagent-studio-strip"
+      - "traefik.http.middlewares.nexagent-studio-strip.stripprefix.prefixes=/studio"
+      - "traefik.http.services.nexagent-studio.loadbalancer.server.port=2024"
   # ─── Graph Visualization ────────────────────────────────────
-  # Use one of these options:
-  # 1) `langgraph dev` locally for live node/edge visualization.
-  # 2) LangSmith tracing via LANGCHAIN_TRACING_V2=true.
+  # Studio UI: https://agent.nexpatch.ai/studio
+  # LangSmith tracing stays optional via LANGCHAIN_TRACING_V2=true.
 
 networks:
   dokploy-network:
