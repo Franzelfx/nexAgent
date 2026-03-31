@@ -1,0 +1,13 @@
+# ══════════════════════════════════════════════════════════════════
+#  NexAgent — LangGraph Configuration
+# ══════════════════════════════════════════════════════════════════
+#
+#  This file is read by the LangGraph CLI / LangGraph Platform
+#  to discover and serve graphs.
+
+[dependencies]
+"." = "./pyproject.toml"
+
+[graphs]
+# Register the main agent graph
+agent = "src.nexagent.graphs.agent:graph"

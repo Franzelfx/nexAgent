@@ -1,0 +1,77 @@
+# ══════════════════════════════════════════════════════════════════
+#  NexAgent — Docker Compose for Dokploy Deployment
+# ══════════════════════════════════════════════════════════════════
+#
+#  Domain:      nexagent.nexpatch.ai
+#
+#  Dokploy Setup:
+#    1. Create a Compose service in Dokploy
+#    2. Point to this repo, set Compose Path to ./docker-compose-dokploy.yml
+#    3. Add environment variables in Dokploy UI (see .env.example)
+#    4. Deploy — Traefik labels handle routing automatically
+#
+#  Notes:
+#    - No container_name — Dokploy needs dynamic naming for logs/metrics
+#    - Uses `expose` instead of `ports` — Traefik handles external access
+#    - All routable services join `dokploy-network` (external)
+#    - HTTPS via Let's Encrypt (certResolver=letsencrypt)
+
+services:
+  # ─── LangGraph Agent API ─────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - 8123
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
+      DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-4o}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-nexagent}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router
+      - "traefik.http.routers.nexagent-api.rule=Host(`nexagent.nexpatch.ai`)"
+      - "traefik.http.routers.nexagent-api.entrypoints=websecure"
+      - "traefik.http.routers.nexagent-api.tls.certResolver=letsencrypt"
+      - "traefik.http.services.nexagent-api.loadbalancer.server.port=8123"
+      # HTTP → HTTPS redirect
+      - "traefik.http.routers.nexagent-api-http.rule=Host(`nexagent.nexpatch.ai`)"
+      - "traefik.http.routers.nexagent-api-http.entrypoints=web"
+      - "traefik.http.routers.nexagent-api-http.middlewares=nexagent-redirect-https"
+      - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.permanent=true"
+
+  # ─── LangGraph Studio UI ────────────────────────────────────
+  # Self-hosted LangGraph Studio for graph visualization.
+  # This provides the visual node/edge graph view of agent execution.
+  #
+  # NOTE: As of 2026, langgraph-studio is the official self-hostable
+  # Docker image. If unavailable, use the LangGraph CLI dev server
+  # or the LangSmith UI instead (see README).
+  # ─────────────────────────────────────────────────────────────
+
+networks:
+  dokploy-network:
+    external: true
