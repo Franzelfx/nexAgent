@@ -113,7 +113,7 @@ curl http://localhost:8123/health
 
 After deploy:
 - API Docs: `https://agent.nexpatch.ai/docs`
-- LangGraph Studio UI: `https://agent.nexpatch.ai/studio`
+- LangGraph Studio UI: `https://agent.nexpatch.ai/studio` (redirects to hosted Studio with your deployment URL)
 
 ## Adding Tools
 
