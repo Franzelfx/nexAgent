@@ -56,7 +56,6 @@ services:
       - "traefik.http.routers.nexagent-api-http.middlewares=nexagent-redirect-https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.nexagent-redirect-https.redirectscheme.permanent=true"
-
   # ─── Graph Visualization ────────────────────────────────────
   # Studio UI entrypoint: https://agent.nexpatch.ai/studio
   # LangSmith tracing stays optional via LANGCHAIN_TRACING_V2=true.
