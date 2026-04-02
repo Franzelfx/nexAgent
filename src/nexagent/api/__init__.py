@@ -10,18 +10,22 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from nexagent.api.routes import router
 from nexagent.config import settings
+from nexagent.database import ensure_schema
+from nexagent.services.builtin_sync import sync_builtin_tools
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # Startup
+    await ensure_schema()
+    await sync_builtin_tools()
     yield
     # Shutdown
 
 
 app = FastAPI(
     title="NexAgent API",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -34,3 +38,16 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+# v1 API routers
+from nexagent.api.executions_router import router as executions_router  # noqa: E402
+from nexagent.api.orchestrators_router import router as orchestrators_router  # noqa: E402
+from nexagent.api.sub_agents_router import router as sub_agents_router  # noqa: E402
+from nexagent.api.tools_router import router as tools_router  # noqa: E402
+from nexagent.api.workflows_router import router as workflows_router  # noqa: E402
+
+app.include_router(tools_router)
+app.include_router(sub_agents_router)
+app.include_router(orchestrators_router)
+app.include_router(workflows_router)
+app.include_router(executions_router)

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from langchain_core.messages import HumanMessage
 
+from nexagent.database import check_db
 from nexagent.graphs import graph
 from nexagent.state import AgentState
 
@@ -26,7 +27,8 @@ class ChatResponse(BaseModel):
 
 @router.get("/health")
 async def health() -> dict:
-    return {"status": "ok"}
+    db_ok = await check_db()
+    return {"status": "ok" if db_ok else "degraded", "db": "ok" if db_ok else "unreachable"}
 
 
 @router.get("/studio")

@@ -3,6 +3,22 @@
 # ══════════════════════════════════════════════════════════════════
 
 services:
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: nexagent
+      POSTGRES_PASSWORD: nexagent
+      POSTGRES_DB: nexagent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U nexagent" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build:
       context: .
@@ -18,3 +34,10 @@ services:
       LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
       LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       DEFAULT_MODEL: ${DEFAULT_MODEL:-gpt-4o}
+      DATABASE_URL: postgresql+asyncpg://nexagent:nexagent@db:5432/nexagent
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

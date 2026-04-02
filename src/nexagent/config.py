@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8123
 
+    # Database (async PostgreSQL)
+    database_url: str = "postgresql+asyncpg://nexagent:nexagent@localhost:5432/nexagent"
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout: int = 30
+
+    # Encryption key for API key storage (Fernet-compatible, base64-encoded 32 bytes)
+    encryption_key: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 
