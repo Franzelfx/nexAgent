@@ -31,6 +31,10 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 COPY src/ ./src/
 COPY langgraph.json ./
 
+# Copy Alembic config and migrations
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
@@ -39,4 +43,5 @@ EXPOSE 8123
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/health')" || exit 1
 
-CMD ["uvicorn", "nexagent.api:app", "--host", "0.0.0.0", "--port", "8123"]
+# Run migrations then start the server
+CMD ["sh", "-c", "alembic upgrade head && uvicorn nexagent.api:app --host 0.0.0.0 --port 8123"]
