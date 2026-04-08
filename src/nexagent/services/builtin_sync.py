@@ -35,6 +35,42 @@ BUILTIN_TOOLS: list[dict] = [
             "required": ["expression"],
         },
     },
+    {
+        "name": "list_pipelines",
+        "display_name": "List Pipelines",
+        "description": "List all available data pipelines with their status and node count.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_pipeline_details",
+        "display_name": "Get Pipeline Details",
+        "description": "Get detailed information about a specific pipeline including all nodes and edges.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pipeline_id": {
+                    "type": "string",
+                    "description": "The UUID of the pipeline to inspect.",
+                }
+            },
+            "required": ["pipeline_id"],
+        },
+    },
+    {
+        "name": "validate_pipeline",
+        "display_name": "Validate Pipeline",
+        "description": "Validate a pipeline's topology — check edge rules, orphan nodes, and terminal presence.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "pipeline_id": {
+                    "type": "string",
+                    "description": "The UUID of the pipeline to validate.",
+                }
+            },
+            "required": ["pipeline_id"],
+        },
+    },
 ]
 
 

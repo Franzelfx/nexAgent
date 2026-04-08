@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ast
+import textwrap
 from typing import Any
 
 import httpx
@@ -47,14 +49,120 @@ def _make_api_call_tool(td: ToolDefinition) -> StructuredTool:
     )
 
 
-def _make_stub_tool(td: ToolDefinition, tool_type: str) -> StructuredTool:
-    """Create a stub tool for not-yet-implemented types (function, mcp)."""
+# ── Allowed builtins for sandboxed function execution ──
+_SAFE_BUILTINS = {
+    "abs", "all", "any", "bool", "dict", "enumerate", "filter",
+    "float", "frozenset", "int", "isinstance", "len", "list",
+    "map", "max", "min", "print", "range", "round", "set",
+    "sorted", "str", "sum", "tuple", "type", "zip",
+}
 
-    async def _stub(**kwargs: Any) -> str:
-        return f"Tool type '{tool_type}' is not yet implemented for '{td.name}'."
+# Allowed imports (module prefixes)
+_SAFE_IMPORTS = {
+    "json", "math", "datetime", "hashlib", "re", "collections",
+    "itertools", "functools", "statistics", "textwrap", "urllib.parse",
+}
+
+
+def _make_function_tool(td: ToolDefinition) -> StructuredTool:
+    """Create a tool that executes user-defined Python code in a restricted sandbox.
+
+    The config must contain a `code` field with a Python function body.
+    The function receives kwargs and must return a string.
+    """
+    config = td.config or {}
+    code = config.get("code", "")
+
+    if not code.strip():
+        async def _empty(**kwargs: Any) -> str:
+            return f"Function tool '{td.name}' has no code configured."
+        return StructuredTool.from_function(
+            coroutine=_empty, name=td.name, description=td.description, args_schema=None,
+        )
+
+    # Validate syntax at registration time (fail fast)
+    try:
+        tree = ast.parse(code, mode="exec")
+    except SyntaxError as e:
+        raise ValueError(f"Function tool '{td.name}' has invalid syntax: {e}") from e
+
+    # Block dangerous patterns
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if not any(alias.name.startswith(safe) for safe in _SAFE_IMPORTS):
+                    raise ValueError(f"Import '{alias.name}' is not allowed in function tool '{td.name}'")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and not any(node.module.startswith(safe) for safe in _SAFE_IMPORTS):
+                raise ValueError(f"Import from '{node.module}' is not allowed in function tool '{td.name}'")
+
+    async def _exec_fn(**kwargs: Any) -> str:
+        # Compile in restricted namespace
+        safe_globals: dict[str, Any] = {"__builtins__": {k: __builtins__[k] for k in _SAFE_BUILTINS if k in __builtins__}} if isinstance(__builtins__, dict) else {}
+        safe_globals["__builtins__"] = {k: getattr(__builtins__, k, None) for k in _SAFE_BUILTINS}
+        # Allow safe imports
+        import importlib
+        def _safe_import(name: str, *args: Any, **kw: Any) -> Any:
+            if not any(name.startswith(safe) for safe in _SAFE_IMPORTS):
+                raise ImportError(f"Import '{name}' is not allowed")
+            return importlib.import_module(name)
+        safe_globals["__builtins__"]["__import__"] = _safe_import
+
+        local_ns: dict[str, Any] = {"kwargs": kwargs, **kwargs}
+        exec(compile(code, f"<tool:{td.name}>", "exec"), safe_globals, local_ns)
+
+        # Look for a callable named 'run' or 'execute' or the tool name
+        for fn_name in ("run", "execute", td.name):
+            if fn_name in local_ns and callable(local_ns[fn_name]):
+                result = local_ns[fn_name](**kwargs)
+                return str(result)
+
+        # If no function found, return last assigned variable or empty
+        return str(local_ns.get("result", "Function executed but no 'run()' function or 'result' variable found."))
 
     return StructuredTool.from_function(
-        coroutine=_stub,
+        coroutine=_exec_fn,
+        name=td.name,
+        description=td.description,
+        args_schema=None,
+    )
+
+
+def _make_mcp_tool(td: ToolDefinition) -> StructuredTool:
+    """Create a tool that calls an MCP server endpoint."""
+    config = td.config or {}
+    server_url = config.get("server_url", "")
+    tool_name = config.get("tool_name", td.name)
+    timeout = config.get("timeout", 30)
+
+    if not server_url:
+        async def _no_url(**kwargs: Any) -> str:
+            return f"MCP tool '{td.name}' has no server_url configured."
+        return StructuredTool.from_function(
+            coroutine=_no_url, name=td.name, description=td.description, args_schema=None,
+        )
+
+    async def _mcp_call(**kwargs: Any) -> str:
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": tool_name, "arguments": kwargs},
+            "id": 1,
+        }
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(server_url, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            if "error" in data:
+                return f"MCP error: {data['error']}"
+            result = data.get("result", {})
+            # MCP returns content array
+            content = result.get("content", [])
+            texts = [c.get("text", str(c)) for c in content if isinstance(c, dict)]
+            return "\n".join(texts) if texts else str(result)
+
+    return StructuredTool.from_function(
+        coroutine=_mcp_call,
         name=td.name,
         description=td.description,
         args_schema=None,
@@ -67,7 +175,8 @@ def resolve_tools(tool_definitions: list[ToolDefinition]) -> list[Any]:
     Supported types:
     - builtin: maps to Python functions registered in tools/__init__.py
     - api_call: makes HTTP requests based on tool config
-    - function / mcp: stubs (not yet implemented)
+    - function: executes user-defined Python code in a sandboxed environment
+    - mcp: calls an MCP server via JSON-RPC
 
     Returns a list of LangChain-compatible tools.
     """
@@ -82,8 +191,10 @@ def resolve_tools(tool_definitions: list[ToolDefinition]) -> list[Any]:
             resolved.append(builtin)
         elif td.tool_type == "api_call":
             resolved.append(_make_api_call_tool(td))
-        elif td.tool_type in ("function", "mcp"):
-            resolved.append(_make_stub_tool(td, td.tool_type))
+        elif td.tool_type == "function":
+            resolved.append(_make_function_tool(td))
+        elif td.tool_type == "mcp":
+            resolved.append(_make_mcp_tool(td))
         else:
             raise ValueError(f"Unknown tool type '{td.tool_type}' for tool '{td.name}'")
 
