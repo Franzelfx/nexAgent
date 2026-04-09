@@ -205,11 +205,11 @@ async def cancel_execution(
     return {"status": "cancelled"}
 
 
-@router.delete("/api/v1/executions/{execution_id}", status_code=204)
+@router.delete("/api/v1/executions/{execution_id}", status_code=204, response_model=None)
 async def delete_execution_endpoint(
     execution_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-) -> None:
+):
     """Hard-delete an execution and all its lanes/steps."""
     try:
         await delete_execution(db, execution_id)
