@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # Encryption key for API key storage (Fernet-compatible, base64-encoded 32 bytes)
     encryption_key: str = ""
 
+    # Chart renderer sidecar (nxpChartRenderer)
+    chart_renderer_url: str = "http://nxp-chart-renderer:8040"
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
 

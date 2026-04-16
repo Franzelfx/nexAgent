@@ -51,3 +51,9 @@ app.include_router(sub_agents_router)
 app.include_router(orchestrators_router)
 app.include_router(workflows_router)
 app.include_router(executions_router)
+
+from nexagent.api.dashboard_router import router as dashboard_router  # noqa: E402
+from nexagent.api.canvas_router import router as canvas_router  # noqa: E402
+
+app.include_router(dashboard_router)
+app.include_router(canvas_router)

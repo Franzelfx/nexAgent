@@ -20,9 +20,18 @@ class ChatRequest(BaseModel):
     thread_id: str | None = None
 
 
+class Attachment(BaseModel):
+    """A chart or file attachment produced by a tool call."""
+
+    type: str  # "image/png", "image/svg+xml", etc.
+    data_uri: str  # base64 data URI
+    title: str = ""
+
+
 class ChatResponse(BaseModel):
     reply: str
     tool_calls_log: list[dict]
+    attachments: list[Attachment] = []
 
 
 @router.get("/health")
@@ -47,7 +56,18 @@ async def chat(req: ChatRequest) -> ChatResponse:
     initial_state = AgentState(messages=[HumanMessage(content=req.message)])
     result = await graph.ainvoke(initial_state)
     last_msg = result["messages"][-1]
+
+    # Extract chart attachments produced by render_* tools
+    attachments: list[Attachment] = []
+    for log_entry in result.get("tool_calls_log", []):
+        output = log_entry.get("output", "")
+        if isinstance(output, str) and output.startswith("data:image/"):
+            mime = output.split(";", 1)[0].split(":", 1)[1]
+            attachments.append(Attachment(type=mime, data_uri=output,
+                                          title=log_entry.get("tool", "")))
+
     return ChatResponse(
         reply=last_msg.content,
         tool_calls_log=result.get("tool_calls_log", []),
+        attachments=attachments,
     )
