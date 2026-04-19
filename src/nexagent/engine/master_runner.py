@@ -13,6 +13,7 @@ from langchain_anthropic import ChatAnthropic
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexagent.engine.capability_map import build_capability_map
+from nexagent.engine.emit_buffer import collect as collect_emits, start as start_emit_buffer
 from nexagent.engine.lane_manager import execute_delegations
 from nexagent.models.orchestrator import Orchestrator
 from nexagent.models.sub_agent import SubAgent
@@ -115,6 +116,11 @@ async def run_workflow(
     )
 
     master_llm = _build_master_llm(orch)
+
+    # Initialise emit buffer (Epic 7) — sub-agents may call
+    # the reserved `emit_pipeline_output` tool to hand data back to the pipeline.
+    if execution_id:
+        start_emit_buffer(execution_id)
 
     # Tracking: create execution and master lane if persistence enabled
     master_lane_id: uuid.UUID | None = None
@@ -221,6 +227,7 @@ async def run_workflow(
         # ── EXECUTE ──
         completed = await execute_delegations(
             new_delegations, agents_by_id, strategy=orch.strategy,
+            execution_id=execution_id,
         )
 
         # ── COLLECT ──
@@ -312,6 +319,11 @@ async def run_workflow(
     if not state.error:
         state.status = "completed"
 
+    # Collect any emit_pipeline_output calls and store on the execution record.
+    if execution_id:
+        emits = collect_emits(execution_id)
+        state.emit_buffer = emits
+
     # Finalize tracking
     if execution_id and master_lane_id:
         await tracker.complete_lane(db, master_lane_id)
@@ -320,6 +332,7 @@ async def run_workflow(
             final_output=state.final_output,
             status=state.status,
             error_message=state.error or None,
+            emit_buffer=state.emit_buffer,
         )
 
     return state

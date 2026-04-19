@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
 from nexagent.engine.sub_agent_runner import run_sub_agent
@@ -16,11 +17,14 @@ logger = logging.getLogger(__name__)
 async def _run_one(
     agent: SubAgent,
     delegation: DelegationTask,
+    execution_id: uuid.UUID | None = None,
 ) -> DelegationTask:
     """Execute a single delegation and return the updated task."""
     delegation.status = "running"
     try:
-        result = await run_sub_agent(agent, delegation.sub_task)
+        result = await run_sub_agent(
+            agent, delegation.sub_task, execution_id=execution_id,
+        )
         delegation.status = "completed" if "error" not in result else "failed"
         delegation.result = result["output"]
         delegation.tokens_used = result.get("tokens_used", 0)
@@ -39,6 +43,8 @@ async def execute_delegations(
     delegations: list[DelegationTask],
     agents_by_id: dict[str, SubAgent],
     strategy: str = "parallel",
+    *,
+    execution_id: uuid.UUID | None = None,
 ) -> list[DelegationTask]:
     """Run sub-agent delegations according to the chosen strategy.
 
@@ -60,7 +66,7 @@ async def execute_delegations(
                 d.status = "failed"
                 d.error = f"Sub-agent {d.sub_agent_id} not found"
                 continue
-            await _run_one(agent, d)
+            await _run_one(agent, d, execution_id=execution_id)
     else:
         # parallel or adaptive — run all concurrently
         tasks = []
@@ -70,7 +76,7 @@ async def execute_delegations(
                 d.status = "failed"
                 d.error = f"Sub-agent {d.sub_agent_id} not found"
                 continue
-            tasks.append(_run_one(agent, d))
+            tasks.append(_run_one(agent, d, execution_id=execution_id))
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)

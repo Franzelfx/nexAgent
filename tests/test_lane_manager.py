@@ -95,7 +95,7 @@ class TestLaneManager:
 
         call_count = 0
 
-        async def side_effect(agent, task):
+        async def side_effect(agent, task, **kwargs):
             nonlocal call_count
             call_count += 1
             if agent.name == "agent1":

@@ -74,6 +74,9 @@ class ExecutionRead(BaseModel):
     finished_at: datetime | None = None
     created_at: datetime
     lanes: list[ExecutionLaneRead] = []
+    # Epic 7: list of {kind, payload, name?, meta?} dicts emitted via
+    # the reserved `emit_pipeline_output` tool.
+    emit_buffer: list[dict[str, Any]] | None = None
 
 
 class ExecutionSummary(BaseModel):

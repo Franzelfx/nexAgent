@@ -101,3 +101,46 @@ async def delete_tool_endpoint(
         raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
     except ToolConflictError as e:
         raise HTTPException(status_code=409, detail=str(e))
+
+
+# --- Probe endpoint ---
+
+
+import time
+from pydantic import BaseModel, Field
+from typing import Any
+
+
+class ToolProbeRequest(BaseModel):
+    input: dict[str, Any] = Field(default_factory=dict, description="Tool call arguments matching input_schema.")
+
+
+class ToolProbeResponse(BaseModel):
+    output: str
+    duration_ms: int = 0
+    error: str | None = None
+
+
+@router.post("/{tool_id}/probe", response_model=ToolProbeResponse)
+async def probe_tool_endpoint(
+    tool_id: uuid.UUID,
+    data: ToolProbeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> ToolProbeResponse:
+    """Invoke a tool once with typed arguments, bypassing any agent loop."""
+    from nexagent.engine.tool_executor import resolve_tools
+
+    try:
+        tool_def = await get_tool(db, tool_id)
+    except ToolNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Tool {tool_id} not found")
+
+    start = time.monotonic()
+    try:
+        [callable_tool] = resolve_tools([tool_def])
+        result = await callable_tool.ainvoke(data.input)
+        elapsed = int((time.monotonic() - start) * 1000)
+        return ToolProbeResponse(output=str(result), duration_ms=elapsed)
+    except Exception as e:
+        elapsed = int((time.monotonic() - start) * 1000)
+        return ToolProbeResponse(output="", duration_ms=elapsed, error=str(e))

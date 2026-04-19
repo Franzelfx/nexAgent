@@ -158,3 +158,45 @@ async def validate_provider_endpoint(
         return await validate_provider(db, agent_id)
     except SubAgentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Sub-agent {agent_id} not found")
+
+
+# --- Probe endpoint ---
+
+
+from pydantic import BaseModel, Field
+
+
+class SubAgentProbeRequest(BaseModel):
+    task_input: str = Field(..., min_length=1, description="User prompt to send to the sub-agent.")
+
+
+class SubAgentProbeResponse(BaseModel):
+    output: str
+    tool_calls: list[dict] = Field(default_factory=list)
+    tokens_used: int = 0
+    duration_ms: int = 0
+    error: str | None = None
+
+
+@router.post("/{agent_id}/probe", response_model=SubAgentProbeResponse)
+async def probe_sub_agent_endpoint(
+    agent_id: uuid.UUID,
+    data: SubAgentProbeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SubAgentProbeResponse:
+    """Run a sub-agent in isolation against a single prompt (bypasses orchestrator)."""
+    from nexagent.engine.sub_agent_runner import run_sub_agent
+
+    try:
+        agent = await get_sub_agent(db, agent_id)
+    except SubAgentNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Sub-agent {agent_id} not found")
+
+    result = await run_sub_agent(agent, data.task_input)
+    return SubAgentProbeResponse(
+        output=result.get("output", ""),
+        tool_calls=result.get("tool_calls_log", []),
+        tokens_used=result.get("tokens_used", 0),
+        duration_ms=result.get("duration_ms", 0),
+        error=result.get("error"),
+    )

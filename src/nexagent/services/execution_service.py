@@ -215,6 +215,7 @@ async def complete_execution(
     final_output: str | None = None,
     status: str = "completed",
     error_message: str | None = None,
+    emit_buffer: list[dict[str, Any]] | None = None,
 ) -> Execution:
     """Finalize an execution — aggregate tokens and cost via SQL."""
     # Aggregate tokens directly from steps (avoids stale identity map)
@@ -262,6 +263,8 @@ async def complete_execution(
         exc.final_output = final_output
     if error_message is not None:
         exc.error_message = error_message
+    if emit_buffer is not None:
+        exc.emit_buffer = emit_buffer
     await db.flush()
     await db.refresh(exc)
     return exc

@@ -53,3 +53,5 @@ class OrchestrationState(BaseModel):
     status: str = "pending"
     capability_summary: str = ""
     error: str = ""
+    # Epic 7: pipeline output buffer — populated by `emit_pipeline_output` tool calls.
+    emit_buffer: list[dict[str, Any]] = Field(default_factory=list)

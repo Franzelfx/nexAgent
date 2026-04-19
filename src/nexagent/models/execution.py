@@ -15,7 +15,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -48,6 +48,12 @@ class Execution(Base):
     total_cost_usd: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Epic 7: output from `emit_pipeline_output` tool calls — list of
+    # {kind, payload, name?, meta?} dicts. Consumed by nxpIngest to feed
+    # downstream pipeline nodes.
+    emit_buffer: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False,
     )

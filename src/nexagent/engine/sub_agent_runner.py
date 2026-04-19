@@ -4,12 +4,18 @@ from __future__ import annotations
 
 import time
 import logging
+import uuid
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, BaseMessage
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 
+from nexagent.engine.emit_buffer import (
+    RESERVED_TOOL_NAME as EMIT_TOOL_NAME,
+    append as emit_append,
+    normalize as emit_normalize,
+)
 from nexagent.engine.tool_executor import resolve_tools
 from nexagent.models.sub_agent import SubAgent
 from nexagent.services.crypto import decrypt_api_key
@@ -52,11 +58,55 @@ def _build_llm(agent: SubAgent) -> Any:
         return ChatOpenAI(**kwargs)
 
 
+_EMIT_TOOL_DESCRIPTION = (
+    "Hand a piece of structured data back to the pipeline that invoked this "
+    "agent. Call this once per distinct output. Arguments: "
+    "kind (one of 'rows', 'timeseries', 'indexed_text'), payload (the data), "
+    "name (optional stream name), meta (optional dict of additional metadata). "
+    "Returns an acknowledgement string."
+)
+
+
+def _build_emit_tool(execution_id: uuid.UUID | None) -> Any:
+    """Build the reserved `emit_pipeline_output` tool for this execution.
+
+    When no execution_id is active (probe calls, etc.), the tool still exists
+    but the emit is dropped on the floor after logging.
+    """
+    from langchain_core.tools import StructuredTool
+
+    async def _emit(**kwargs: Any) -> str:
+        normalized = emit_normalize(kwargs)
+        if execution_id is not None:
+            emit_append(execution_id, normalized)
+        else:
+            logger.info("[emit_pipeline_output] dropped (no active execution): kind=%s", normalized["kind"])
+        return f"ok: emitted {normalized['kind']} payload"
+
+    return StructuredTool.from_function(
+        coroutine=_emit,
+        name=EMIT_TOOL_NAME,
+        description=_EMIT_TOOL_DESCRIPTION,
+        args_schema=None,
+    )
+
+
 async def run_sub_agent(
     agent: SubAgent,
     sub_task: str,
+    *,
+    execution_id: uuid.UUID | None = None,
+    enable_emit_tool: bool = True,
 ) -> dict[str, Any]:
     """Run a sub-agent's ReAct loop with its bound tools.
+
+    Args:
+        agent: The sub-agent to run.
+        sub_task: User task for the sub-agent.
+        execution_id: Active execution id — required for `emit_pipeline_output`
+            to route into the shared emit buffer (Epic 7).
+        enable_emit_tool: If True, expose the reserved `emit_pipeline_output`
+            tool on top of the sub-agent's bound tools.
 
     Returns:
         {
@@ -68,6 +118,8 @@ async def run_sub_agent(
     """
     start = time.monotonic()
     tools = resolve_tools(list(agent.tools))
+    if enable_emit_tool:
+        tools = [*tools, _build_emit_tool(execution_id)]
     llm = _build_llm(agent)
 
     # Build tool map for execution
